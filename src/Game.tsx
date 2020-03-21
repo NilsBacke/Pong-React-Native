@@ -7,15 +7,28 @@ import { Player } from './components/Player';
 import { Score } from './components/Score';
 import { Menu } from './overlays/Menu';
 import { GameOver } from './overlays/GameOver';
+import { ResetText } from './components/ResetText';
 
 const SCORE_LIMIT = 2;
 const STARTING_SPEED = 5;
-const SPEED_MULTIPLIER = 1.25;
-const MAX_SPEED = 30;
-const X_VELOCITY_MULTIPLIER = 0.15;
+const SPEED_MULTIPLIER = 1.2;
+const MAX_SPEED = 20;
+const SECONDS_TO_RESET = 4;
+const X_VELOCITY_MULTIPLIER = 0.18;
+const PLAYER_1_FRACTION_OF_HEIGHT = 0.95;
+const PLAYER_2_FRACTION_OF_HEIGHT = 0.05;
+
+const PLAYER_1_SCORE_FRACTION_OF_X = 0.9;
+const PLAYER_1_SCORE_FRACTION_OF_Y = 0.93;
+const PLAYER_2_SCORE_FRACTION_OF_X = 0.1;
+const PLAYER_2_SCORE_FRACTION_OF_Y = 0.03;
 
 var player1Score = 0;
 var player2Score = 0;
+
+var player1Starts = true;
+
+var resetTimer: number;
 
 const { width, height } = Dimensions.get('screen');
 
@@ -32,9 +45,12 @@ const initialBall = Matter.Bodies.circle(
   },
 );
 
-const playerWidth = width / 3;
+const playerWidth = width / 5;
 const playerHeight = height / 75;
-const initialPlayer1Position = { x: width / 2, y: height * 0.95 };
+const initialPlayer1Position = {
+  x: width / 2,
+  y: height * PLAYER_1_FRACTION_OF_HEIGHT,
+};
 const initialPlayer1 = Matter.Bodies.rectangle(
   initialPlayer1Position.x,
   initialPlayer1Position.y,
@@ -42,7 +58,11 @@ const initialPlayer1 = Matter.Bodies.rectangle(
   playerHeight,
   { isStatic: true, label: 'Player1' },
 );
-const initialPlayer2Position = { x: width / 2, y: height * 0.05 };
+
+const initialPlayer2Position = {
+  x: width / 2,
+  y: height * PLAYER_2_FRACTION_OF_HEIGHT,
+};
 const initialPlayer2 = Matter.Bodies.rectangle(
   initialPlayer2Position.x,
   initialPlayer2Position.y,
@@ -62,9 +82,7 @@ const wallOptions = {
     visible: false,
   },
 };
-
 const leftWall = Matter.Bodies.rectangle(0, height / 2, 1, height, wallOptions);
-
 const rightWall = Matter.Bodies.rectangle(
   width,
   height / 2,
@@ -88,6 +106,7 @@ interface State {
   gameIsRunning: boolean;
   menuIsVisible: boolean;
   whoWon: string;
+  showReset: boolean;
 }
 
 export class Game extends React.Component<{}, State> {
@@ -101,6 +120,7 @@ export class Game extends React.Component<{}, State> {
       gameIsRunning: false,
       menuIsVisible: true,
       whoWon: '',
+      showReset: false,
     };
 
     this.gameEngine = null;
@@ -108,9 +128,41 @@ export class Game extends React.Component<{}, State> {
     this.entities = this.setupWorld();
   }
 
+  collidedWithPlayer(bodyA: any, bodyB: any): boolean {
+    return (
+      bodyA.label === 'Player1' ||
+      bodyA.label === 'Player2' ||
+      bodyB.label === 'Player1' ||
+      bodyB.label === 'Player2'
+    );
+  }
+
   setupWorld() {
-    Matter.Events.on(engine, 'collisionStart', function(event) {
+    player1Score = 0;
+    player2Score = 0;
+    player1Starts = true;
+
+    Matter.Events.on(engine, 'collisionStart', event => {
       const { bodyA, bodyB } = event.pairs[0];
+
+      if (
+        (initialBall.velocity.x != 0 || initialBall.velocity.y != 0) &&
+        this.collidedWithPlayer(bodyA, bodyB)
+      ) {
+        if (resetTimer != undefined) {
+          clearTimeout(resetTimer);
+          this.setState({
+            showReset: false,
+          });
+        }
+
+        resetTimer = setTimeout(() => {
+          this.setState({
+            showReset: true,
+          });
+        }, SECONDS_TO_RESET * 1000);
+      }
+
       if (bodyA.label === 'Player1' || bodyA.label === 'Player2') {
         const newY = bodyB.velocity.y * -SPEED_MULTIPLIER;
 
@@ -156,15 +208,15 @@ export class Game extends React.Component<{}, State> {
       },
       player1Score: {
         renderer: Score,
-        x: width * 0.9,
-        y: height * 0.93,
+        x: width * PLAYER_1_SCORE_FRACTION_OF_X,
+        y: height * PLAYER_1_SCORE_FRACTION_OF_Y,
         text: String(player1Score),
         player1: true,
       },
       player2Score: {
         renderer: Score,
-        x: width * 0.1,
-        y: height * 0.03,
+        x: width * PLAYER_2_SCORE_FRACTION_OF_X,
+        y: height * PLAYER_2_SCORE_FRACTION_OF_Y,
         text: String(player2Score),
         player1: false,
       },
@@ -176,7 +228,10 @@ export class Game extends React.Component<{}, State> {
       touches
         .filter((t: any) => t.type === 'press')
         .forEach((t: any) => {
-          Matter.Body.setVelocity(initialBall, { x: 0, y: STARTING_SPEED });
+          Matter.Body.setVelocity(initialBall, {
+            x: 0,
+            y: player1Starts ? STARTING_SPEED : -STARTING_SPEED,
+          });
         });
     }
     return entities;
@@ -231,10 +286,14 @@ export class Game extends React.Component<{}, State> {
   };
 
   resetTurn() {
+    this.setState({
+      showReset: false,
+    });
     Matter.Body.setPosition(initialBall, initialBallPosition);
     Matter.Body.setVelocity(initialBall, { x: 0, y: 0 });
     Matter.Body.setPosition(initialPlayer1, initialPlayer1Position);
     Matter.Body.setPosition(initialPlayer2, initialPlayer2Position);
+    player1Starts = !player1Starts;
   }
 
   gameOver(who: string) {
@@ -242,6 +301,7 @@ export class Game extends React.Component<{}, State> {
       gameIsRunning: false,
       menuIsVisible: false,
       whoWon: who,
+      showReset: false,
     });
   }
 
@@ -251,6 +311,7 @@ export class Game extends React.Component<{}, State> {
       gameIsRunning: true,
       menuIsVisible: false,
       whoWon: '',
+      showReset: false,
     });
   }
 
@@ -271,6 +332,13 @@ export class Game extends React.Component<{}, State> {
           running={this.state.gameIsRunning}
           entities={this.entities}>
           <StatusBar hidden={false} />
+          {this.state.showReset && (
+            <ResetText
+              x={width / 2 - 35}
+              y={height / 2 - 12}
+              onPress={this.resetTurn.bind(this)}
+            />
+          )}
         </GameEngine>
         {!this.state.gameIsRunning && !!this.state.menuIsVisible && (
           <Menu onPlayPress={this.reset.bind(this)} />
