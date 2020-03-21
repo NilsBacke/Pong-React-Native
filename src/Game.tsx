@@ -1,22 +1,18 @@
 import React from 'react';
-import {
-  StyleSheet,
-  Dimensions,
-  StatusBar,
-  TouchableOpacity,
-  View,
-  Text,
-} from 'react-native';
+import { StyleSheet, Dimensions, StatusBar } from 'react-native';
 import Matter from 'matter-js';
 import { GameEngine } from 'react-native-game-engine';
 import { Ball } from './components/Ball';
 import { Player } from './components/Player';
 import { Score } from './components/Score';
+import { Menu } from './overlays/Menu';
+import { GameOver } from './overlays/GameOver';
 
 const SCORE_LIMIT = 2;
 const STARTING_SPEED = 5;
-const SPEED_MULTIPLIER = 1.3;
+const SPEED_MULTIPLIER = 1.25;
 const MAX_SPEED = 30;
+const X_VELOCITY_MULTIPLIER = 0.15;
 
 var player1Score = 0;
 var player2Score = 0;
@@ -30,7 +26,7 @@ const initialBall = Matter.Bodies.circle(
   initialBallPosition.y,
   ballSize,
   {
-    restitution: 1.01,
+    restitution: 1.05,
     frictionAir: 0,
     inertia: Infinity,
   },
@@ -89,7 +85,8 @@ Matter.World.add(world, [
 ]);
 
 interface State {
-  running: boolean;
+  gameIsRunning: boolean;
+  menuIsVisible: boolean;
   whoWon: string;
 }
 
@@ -101,7 +98,8 @@ export class Game extends React.Component<{}, State> {
     super(props);
 
     this.state = {
-      running: true,
+      gameIsRunning: false,
+      menuIsVisible: true,
       whoWon: '',
     };
 
@@ -117,7 +115,7 @@ export class Game extends React.Component<{}, State> {
         const newY = bodyB.velocity.y * -SPEED_MULTIPLIER;
 
         Matter.Body.setVelocity(bodyB, {
-          x: (bodyB.position.x - bodyA.position.x) * 0.1,
+          x: (bodyB.position.x - bodyA.position.x) * X_VELOCITY_MULTIPLIER,
           y: Math.abs(newY) < MAX_SPEED ? newY : MAX_SPEED,
         });
       }
@@ -125,7 +123,7 @@ export class Game extends React.Component<{}, State> {
         const newY = bodyA.velocity.y * -SPEED_MULTIPLIER;
 
         Matter.Body.setVelocity(bodyA, {
-          x: (bodyA.position.x - bodyB.position.x) * 0.1,
+          x: (bodyA.position.x - bodyB.position.x) * X_VELOCITY_MULTIPLIER,
           y: Math.abs(newY) < MAX_SPEED ? newY : MAX_SPEED,
         });
       }
@@ -194,6 +192,7 @@ export class Game extends React.Component<{}, State> {
         this.gameOver('Player 2');
       }
     }
+    // player 1 score
     if (initialBall.position.y < initialPlayer2Position.y) {
       player1Score++;
       entities['player1Score']['text'] = player1Score;
@@ -240,7 +239,8 @@ export class Game extends React.Component<{}, State> {
 
   gameOver(who: string) {
     this.setState({
-      running: false,
+      gameIsRunning: false,
+      menuIsVisible: false,
       whoWon: who,
     });
   }
@@ -248,7 +248,8 @@ export class Game extends React.Component<{}, State> {
   reset() {
     this.gameEngine.swap(this.setupWorld());
     this.setState({
-      running: true,
+      gameIsRunning: true,
+      menuIsVisible: false,
       whoWon: '',
     });
   }
@@ -267,21 +268,18 @@ export class Game extends React.Component<{}, State> {
             this.Physics,
           ]}
           style={styles.container}
-          running={this.state.running}
+          running={this.state.gameIsRunning}
           entities={this.entities}>
           <StatusBar hidden={false} />
         </GameEngine>
-        {!this.state.running && (
-          <TouchableOpacity
-            style={styles.fullScreenButton}
-            onPress={this.reset.bind(this)}>
-            <View style={styles.fullScreen}>
-              <Text style={styles.gameOverText}>
-                {this.state.whoWon + ' Won!'}
-              </Text>
-              <Text style={styles.gameOverText}>Tap anywhere to restart</Text>
-            </View>
-          </TouchableOpacity>
+        {!this.state.gameIsRunning && !!this.state.menuIsVisible && (
+          <Menu onPlayPress={this.reset.bind(this)} />
+        )}
+        {!this.state.gameIsRunning && !this.state.menuIsVisible && (
+          <GameOver
+            onReset={this.reset.bind(this)}
+            whoWon={this.state.whoWon}
+          />
         )}
       </>
     );
@@ -292,29 +290,5 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#003',
-  },
-  gameOverText: {
-    color: 'white',
-    fontSize: 48,
-    textAlign: 'center',
-  },
-  fullScreen: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'black',
-    opacity: 0.75,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  fullScreenButton: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flex: 1,
   },
 });
