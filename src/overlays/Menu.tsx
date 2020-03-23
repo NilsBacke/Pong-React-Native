@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     top: height * 0.07,
   },
   player1TutorialText: {
-    top: height * 0.906,
+    top: height * 0.885,
   },
   ballTutorialText: {
     top: height * 0.45,
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '70deg' }],
   },
   player1Arrow: {
-    top: height * 0.92,
+    top: height * 0.9,
     left: width * 0.28,
     transform: [{ rotate: '260deg' }],
   },
