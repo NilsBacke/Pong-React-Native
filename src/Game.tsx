@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Dimensions, StatusBar } from 'react-native';
+import { StyleSheet, Dimensions, StatusBar, Platform } from 'react-native';
 import Matter from 'matter-js';
 import { GameEngine } from 'react-native-game-engine';
 import { Ball } from './components/Ball';
@@ -8,8 +8,9 @@ import { Score } from './components/Score';
 import { Menu } from './overlays/Menu';
 import { GameOver } from './overlays/GameOver';
 import { ResetText } from './components/ResetText';
+import { AdMobInterstitial } from 'react-native-admob';
 
-const SCORE_LIMIT = 2;
+const SCORE_LIMIT = 1;
 const STARTING_SPEED = 5;
 const SPEED_MULTIPLIER = 1.2;
 const MAX_SPEED = 22;
@@ -22,6 +23,10 @@ const PLAYER_1_SCORE_FRACTION_OF_X = 0.9;
 const PLAYER_1_SCORE_FRACTION_OF_Y = 0.907;
 const PLAYER_2_SCORE_FRACTION_OF_X = 0.1;
 const PLAYER_2_SCORE_FRACTION_OF_Y = 0.035;
+
+const GAMES_PLAYED_PER_AD = 3;
+
+var gamesPlayed = 0;
 
 var player1Score = 0;
 var player2Score = 0;
@@ -297,6 +302,7 @@ export class Game extends React.Component<{}, State> {
   }
 
   gameOver(who: string) {
+    gamesPlayed++;
     this.setState({
       gameIsRunning: false,
       menuIsVisible: false,
@@ -306,13 +312,34 @@ export class Game extends React.Component<{}, State> {
   }
 
   reset() {
-    this.gameEngine.swap(this.setupWorld());
-    this.setState({
-      gameIsRunning: true,
-      menuIsVisible: false,
-      whoWon: '',
-      showReset: false,
-    });
+    if (gamesPlayed !== 0 && gamesPlayed % GAMES_PLAYED_PER_AD === 0) {
+      gamesPlayed = 0;
+      AdMobInterstitial.setAdUnitID(
+        Platform.OS === 'ios'
+          ? 'ca-app-pub-2682134172957549/7704191781'
+          : 'ca-app-pub-2682134172957549/8616698640',
+      );
+      AdMobInterstitial.setTestDevices([AdMobInterstitial.simulatorId]);
+      AdMobInterstitial.requestAd().then(() =>
+        AdMobInterstitial.showAd().then(() => {
+          this.gameEngine.swap(this.setupWorld());
+          this.setState({
+            gameIsRunning: true,
+            menuIsVisible: false,
+            whoWon: '',
+            showReset: false,
+          });
+        }),
+      );
+    } else {
+      this.gameEngine.swap(this.setupWorld());
+      this.setState({
+        gameIsRunning: true,
+        menuIsVisible: false,
+        whoWon: '',
+        showReset: false,
+      });
+    }
   }
 
   render() {
